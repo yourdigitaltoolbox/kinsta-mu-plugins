@@ -1,0 +1,24 @@
+{
+    "name": "kinsta/kinsta-mu-plugins",
+    "description": "The plugin designed to work on Kinsta's managed WordPress hosting platform.",
+    "type": "wordpress-plugin",
+    "keywords": [
+        "wordpress",
+        "mu-plugin",
+        "kinsta",
+        "hosting",
+        "performance",
+        "cache"
+    ],
+    "homepage": "https://kinsta.com/knowledgebase/kinsta-mu-plugin/",
+    "authors": [
+        {
+            "name": "Kinsta Team",
+            "homepage": "https://kinsta.com/about-us/"
+        }
+    ],
+    "support": {
+        "docs": "https://kinsta.com/docs/wordpress-hosting/kinsta-mu-plugin",
+        "issues": "https://github.com/your-username/kinsta-mu-plugin/issues"
+    }
+}

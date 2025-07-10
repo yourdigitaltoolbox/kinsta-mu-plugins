@@ -1,0 +1,197 @@
+name: Update Kinsta MU Plugin
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC (weekly check)
+    - cron: "0 9 * * 1"
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  update-plugin:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+
+      - name: Get current version
+        id: current-version
+        run: |
+          if [ -f "kinsta-mu-plugins.php" ]; then
+            CURRENT_VERSION=$(grep -oP "Version:\s*\K[0-9]+\.[0-9]+\.[0-9]+" kinsta-mu-plugins.php || echo "0.0.0")
+            echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "Current version: $CURRENT_VERSION"
+          else
+            echo "current_version=0.0.0" >> $GITHUB_OUTPUT
+            echo "No current version found"
+          fi
+
+      - name: Download latest plugin
+        id: download
+        run: |
+          echo "Downloading Kinsta MU Plugin..."
+          curl -L -o kinsta-mu-plugins.zip "https://kinsta.com/kinsta-tools/kinsta-mu-plugins.zip"
+
+          # Create temporary directory for extraction
+          mkdir -p temp_extract
+          cd temp_extract
+
+          # Extract the zip file
+          unzip -q ../kinsta-mu-plugins.zip
+
+          # Find the main plugin file and extract version
+          if [ -f "kinsta-mu-plugins.php" ]; then
+            LATEST_VERSION=$(grep -oP "Version:\s*\K[0-9]+\.[0-9]+\.[0-9]+" kinsta-mu-plugins.php || echo "0.0.0")
+            echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+            echo "Latest version: $LATEST_VERSION"
+          else
+            echo "latest_version=0.0.0" >> $GITHUB_OUTPUT
+            echo "Could not find version in downloaded plugin"
+          fi
+
+          cd ..
+
+      - name: Compare versions and update if needed
+        id: version-check
+        run: |
+          CURRENT="${{ steps.current-version.outputs.current_version }}"
+          LATEST="${{ steps.download.outputs.latest_version }}"
+
+          echo "Current version: $CURRENT"
+          echo "Latest version: $LATEST"
+          echo "latest_version=$LATEST" >> $GITHUB_OUTPUT
+
+          # Function to compare versions
+          version_compare() {
+            local v1=$1
+            local v2=$2
+            
+            # Split versions into arrays
+            IFS='.' read -ra V1 <<< "$v1"
+            IFS='.' read -ra V2 <<< "$v2"
+            
+            # Compare each part
+            for i in {0..2}; do
+              local part1=${V1[$i]:-0}
+              local part2=${V2[$i]:-0}
+              
+              if (( part1 < part2 )); then
+                return 1  # v1 < v2
+              elif (( part1 > part2 )); then
+                return 2  # v1 > v2
+              fi
+            done
+            
+            return 0  # v1 == v2
+          }
+
+          if version_compare "$CURRENT" "$LATEST"; then
+            case $? in
+              1)
+                echo "needs_update=true" >> $GITHUB_OUTPUT
+                echo "New version available: $LATEST (current: $CURRENT)"
+                ;;
+              *)
+                echo "needs_update=false" >> $GITHUB_OUTPUT
+                echo "No update needed. Current version $CURRENT is up to date."
+                ;;
+            esac
+          fi
+
+      - name: Update plugin files
+        if: steps.version-check.outputs.needs_update == 'true'
+        run: |
+          echo "Updating plugin files..."
+
+          # Preserve important directories/files
+          if [ -d ".git" ]; then
+            cp -r .git temp_git_backup
+          fi
+          if [ -d ".github" ]; then
+            cp -r .github temp_github_backup
+          fi
+          if [ -f "README.md" ]; then
+            cp README.md temp_readme_backup
+          fi
+          if [ -f "composer.json" ]; then
+            cp composer.json temp_composer_backup
+          fi
+          if [ -f ".gitignore" ]; then
+            cp .gitignore temp_gitignore_backup
+          fi
+
+          # Remove old plugin files (but keep preserved directories/files)
+          find . -maxdepth 1 -name "kinsta-mu-plugins*" -exec rm -rf {} +
+
+          # Move new files from temp directory
+          cd temp_extract
+          cp -r * ../
+          cd ..
+
+          # Restore preserved directories/files
+          if [ -d "temp_git_backup" ]; then
+            rm -rf .git
+            mv temp_git_backup .git
+          fi
+          if [ -d "temp_github_backup" ]; then
+            rm -rf .github
+            mv temp_github_backup .github
+          fi
+          if [ -f "temp_readme_backup" ]; then
+            mv temp_readme_backup README.md
+          fi
+          if [ -f "temp_composer_backup" ]; then
+            mv temp_composer_backup composer.json
+          fi
+          if [ -f "temp_gitignore_backup" ]; then
+            mv temp_gitignore_backup .gitignore
+          fi
+
+          # Clean up
+          rm -rf temp_extract kinsta-mu-plugins.zip
+          rm -rf temp_*_backup 2>/dev/null || true
+
+          echo "Plugin updated to version ${{ steps.version-check.outputs.latest_version }}"
+
+      - name: Configure Git
+        if: steps.version-check.outputs.needs_update == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Commit and push changes
+        if: steps.version-check.outputs.needs_update == 'true'
+        run: |
+          git add .
+          git status
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update Kinsta MU Plugin to version ${{ steps.version-check.outputs.latest_version }}"
+            git push
+            echo "Changes committed and pushed successfully"
+          fi
+
+      - name: Create release tag
+        if: steps.version-check.outputs.needs_update == 'true'
+        run: |
+          git tag "v${{ steps.version-check.outputs.latest_version }}"
+          git push origin "v${{ steps.version-check.outputs.latest_version }}"
+          echo "Created and pushed tag v${{ steps.version-check.outputs.latest_version }}"
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.version-check.outputs.needs_update }}" == "true" ]; then
+            echo "✅ Plugin updated successfully to version ${{ steps.version-check.outputs.latest_version }}"
+          else
+            echo "ℹ️ No update needed. Current version ${{ steps.current-version.outputs.current_version }} is up to date."
+          fi
