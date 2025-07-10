@@ -46,7 +46,9 @@ The repository uses GitHub Actions to automatically:
 2. Download the latest version from Kinsta
 3. Compare versions and update if necessary
 4. Commit changes and create version tags
-5. Preserve repository-specific files (`.git`, `.github`, `README.md`, etc.)
+5. Preserve repository-specific files (`.git`, `.github`, `README.md`, `composer.json`, `.gitignore`, `.gitattributes`)
+
+The `.gitattributes` file ensures that when installed via Composer, only the essential plugin files are included, excluding development files like `.github/` workflows.
 
 You can also manually trigger the update workflow from the GitHub Actions tab.
 

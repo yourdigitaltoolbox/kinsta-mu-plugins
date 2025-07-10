@@ -1,0 +1,14 @@
+# Export only the essential plugin files when installed via Composer
+# Everything else is excluded from the archive
+
+# Exclude development and repository files
+.github/ export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
+test-update.sh export-ignore
+
+# Include only these essential files:
+# - kinsta-mu-plugins.php (main plugin file)
+# - kinsta-mu-plugins/ (plugin directory)
+# - composer.json (package metadata)
+# - README.md (documentation)

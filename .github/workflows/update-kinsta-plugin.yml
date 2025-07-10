@@ -127,6 +127,9 @@ jobs:
           if [ -f ".gitignore" ]; then
             cp .gitignore temp_gitignore_backup
           fi
+          if [ -f ".gitattributes" ]; then
+            cp .gitattributes temp_gitattributes_backup
+          fi
 
           # Remove old plugin files (but keep preserved directories/files)
           find . -maxdepth 1 -name "kinsta-mu-plugins*" -exec rm -rf {} +
@@ -153,6 +156,9 @@ jobs:
           fi
           if [ -f "temp_gitignore_backup" ]; then
             mv temp_gitignore_backup .gitignore
+          fi
+          if [ -f "temp_gitattributes_backup" ]; then
+            mv temp_gitattributes_backup .gitattributes
           fi
 
           # Clean up
